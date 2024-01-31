@@ -1,0 +1,78 @@
+#!/bin/bash
+set -xeuo pipefail
+
+sudo apt-get install --no-install-recommends -y \
+  build-essential \
+  libfdk-aac-dev \
+  libgnutls28-dev \
+  libnuma-dev \
+  libunistring-dev \
+  libx265-dev \
+  pkg-config \
+
+ffmpeg="${HOME}/bin/ffmpeg"
+
+if [ ! -e "${ffmpeg}" ]; then
+  ffmpegSources="${HOME}/ffmpeg-sources"
+  if [ ! -e "${ffmpegSources}" ]; then
+    mkdir -p "${ffmpegSources}"
+  fi
+  cd "${ffmpegSources}"
+  if [ ! -e "ffmpeg-6.1.1" ]; then
+    ffmpegArchive="ffmpeg-6.1.1.tar.xz"
+    ffmpegArchiveTmp="$(tempfile)"
+    wget -O "${ffmpegArchiveTmp}" "https://ffmpeg.org/releases/${ffmpegArchive}"
+    mv "${ffmpegArchiveTmp}" "${ffmpegArchive}"
+    tar xvf "${ffmpegArchive}"
+  fi
+  cd "ffmpeg-6.1.1"
+  PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure --prefix="$HOME/ffmpeg_build"  --pkg-config-flags="--static"   --extra-cflags="-I$HOME/ffmpeg_build/include"   --extra-ldflags="-L$HOME/ffmpeg_build/lib"   --extra-libs="-lpthread -lm"   --ld="g++"   --bindir="$HOME/bin"   --enable-gpl   --enable-gnutls   --enable-libfdk-aac   --enable-libx265   --enable-nonfree
+  PATH="$HOME/bin:$PATH" make
+  make install
+  hash -r
+fi
+
+whisperDir="${HOME}/whisper.cpp"
+
+if [ $# -ne 1 ]; then
+  echo "usage: $0 <episode id>"
+  exit 1
+fi
+epid="$1"
+
+final="${epid}.mp4"
+
+if [ -e "${final}" ]; then
+  echo "final output file already exists: ${final}"
+  exit 1
+fi
+
+source="${epid}.source.mp4"
+
+if [ ! -e "${source}" ]; then
+  sourceTmp="$(tempfile)"
+  wget -O "${sourceTmp}" "https://archive.org/download/tt0062588_202201/${epid}.mp4"
+  mv "${sourceTmp}" "${source}"
+fi
+
+wav="${epid}.wav"
+
+if [ ! -e "${wav}" ]; then
+  wavTmp="$(tempfile)"
+  "${ffmpeg}" -i "${source}" -ar 16000 -ac 1 -c:a pcm_s16le -f wav -y "${wavTmp}"
+  mv "${wavTmp}" "${wav}"
+fi
+
+srt="${epid}.srt"
+
+if [ ! -e "${srt}" ]; then
+  model="${WHISPER_MODEL:-large-v3}"
+  #bash "${wisperDir}/models/download-ggml-model.sh "${model}"
+  srtTmp="$(tempfile)"
+  "${whisperDir}/main" -m "${whisperDir}/models/ggml-${model}.bin" -f "${wav}" -osrt | tee "${srtTmp}"
+  mv "${srtTmp}" "${srt}"
+fi
+
+finalTmp="$(tempfile)"
+"${ffmpeg}" -i "${source}" -filter:v "crop=1440:1080:240:0,scale=640:480" -c:v libx265 -crf 22 -preset "${FFMPEG_VIDEO_PRESET:-slow}" -c:a libfdk_aac -vbr 3 -f mp4 -movflags faststart -y "${finalTmp}"
+mv "${finalTmp}" "${final}"
