@@ -1,18 +1,18 @@
 #!/bin/bash
 set -xeuo pipefail
 
-sudo apt-get install --no-install-recommends -y \
-  build-essential \
-  libfdk-aac-dev \
-  libgnutls28-dev \
-  libnuma-dev \
-  libunistring-dev \
-  libx265-dev \
-  pkg-config \
-
 ffmpeg="${HOME}/bin/ffmpeg"
 
 if [ ! -e "${ffmpeg}" ]; then
+  sudo apt-get install --no-install-recommends -y \
+    build-essential \
+    libfdk-aac-dev \
+    libgnutls28-dev \
+    libnuma-dev \
+    libunistring-dev \
+    libx265-dev \
+    pkg-config \
+
   ffmpegSources="${HOME}/ffmpeg-sources"
   if [ ! -e "${ffmpegSources}" ]; then
     mkdir -p "${ffmpegSources}"
@@ -27,12 +27,28 @@ if [ ! -e "${ffmpeg}" ]; then
   fi
   cd "ffmpeg-6.1.1"
   PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure --prefix="$HOME/ffmpeg_build"  --pkg-config-flags="--static"   --extra-cflags="-I$HOME/ffmpeg_build/include"   --extra-ldflags="-L$HOME/ffmpeg_build/lib"   --extra-libs="-lpthread -lm"   --ld="g++"   --bindir="$HOME/bin"   --enable-gpl   --enable-gnutls   --enable-libfdk-aac   --enable-libx265   --enable-nonfree
-  PATH="$HOME/bin:$PATH" make
+  PATH="$HOME/bin:$PATH" make -j$(nproc)
   make install
   hash -r
 fi
 
-whisperDir="${HOME}/whisper.cpp"
+whisperDir="${HOME}/dev/whisper.cpp"
+if [ ! -e "${whisperDir}" ]; then
+  git clone https://github.com/ggerganov/whisper.cpp.git "${whisperDir}"
+fi
+
+if [ ! -e "${whisperDir}/main" ]; then
+  pushd "${whisperDir}"
+  make -j$(nproc)
+  popd
+fi
+
+model="${WHISPER_MODEL:-large-v3}"
+if [ ! -e "${whisperDir}/models/ggml-${model}.bin" ]; then
+  pushd "${whisperDir}"
+  bash "./models/download-ggml-model.sh" "${model}"
+  popd
+fi
 
 if [ $# -ne 1 ]; then
   echo "usage: $0 <episode id>"
@@ -66,8 +82,6 @@ fi
 srt="${epid}.srt"
 
 if [ ! -e "${srt}" ]; then
-  model="${WHISPER_MODEL:-large-v3}"
-  #bash "${wisperDir}/models/download-ggml-model.sh "${model}"
   srtTmp="$(tempfile)"
   "${whisperDir}/main" -m "${whisperDir}/models/ggml-${model}.bin" -f "${wav}" -osrt | tee "${srtTmp}"
   mv "${srtTmp}" "${srt}"
