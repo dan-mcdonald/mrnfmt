@@ -86,7 +86,7 @@ fi
 h265="${epid}.h265"
 if [ ! -e "${h265}" ]; then
   h265Tmp="$(mktemp)"
-  "${ffmpeg}" -i "${source}" -filter:v "crop=1440:1080:240:0,scale=640:480" -f yuv4mpegpipe pipe:1 | ~/ffmpeg_build/bin/x265 --input - --y4m --crf 25 --preset "${FFMPEG_VIDEO_PRESET:-slow}" --output "${h265Tmp}"
+  "${ffmpeg}" -i "${source}" -filter:v "crop=1440:1080:240:0,scale=640:480" -f yuv4mpegpipe pipe:1 | ~/ffmpeg_build/bin/x265 --input - --y4m --crf 22 --preset "${FFMPEG_VIDEO_PRESET:-slow}" --output "${h265Tmp}"
   mv "${h265Tmp}" "${h265}"
 fi
 
