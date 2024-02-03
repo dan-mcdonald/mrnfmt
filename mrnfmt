@@ -46,24 +46,6 @@ if [ ! -e "${ffmpeg}" ]; then
   hash -r
 fi
 
-whisperDir="${HOME}/dev/whisper.cpp"
-if [ ! -e "${whisperDir}" ]; then
-  git clone https://github.com/ggerganov/whisper.cpp.git "${whisperDir}"
-fi
-
-if [ ! -e "${whisperDir}/main" ]; then
-  pushd "${whisperDir}"
-  make -j$(nproc) main
-  popd
-fi
-
-model="${WHISPER_MODEL:-large-v3}"
-if [ ! -e "${whisperDir}/models/ggml-${model}.bin" ]; then
-  pushd "${whisperDir}"
-  bash "./models/download-ggml-model.sh" "${model}"
-  popd
-fi
-
 if [ $# -ne 1 ]; then
   echo "usage: $0 <episode id>"
   exit 1
@@ -96,9 +78,7 @@ fi
 srt="${epid}.srt"
 
 if [ ! -e "${srt}" ]; then
-  srtTmp="$(mktemp)"
-  "${whisperDir}/main" -m "${whisperDir}/models/ggml-${model}.bin" -f "${wav}" --entropy-thold 5.0 -of "${srtTmp}" -osrt
-  mv "${srtTmp}" "${srt}"
+  "~/dev/mrnfmt/venv/bin/python" ~/dev/mrnfmt/transcribe.py "${wav}" "${srt}"
 fi
 # -filter:v "crop=1440:1080:240:0,scale=640:480"
 
@@ -106,12 +86,12 @@ fi
 h265="${epid}.h265"
 if [ ! -e "${h265}" ]; then
   h265Tmp="$(mktemp)"
-  "${ffmpeg}" -i "${source}" -filter:v "crop=1440:1080:240:0,scale=640:480" -f yuv4mpegpipe pipe:1 | ~/ffmpeg_build/bin/x265 --input - --y4m --crf 22 --preset "${FFMPEG_VIDEO_PRESET:-slow}" --output "${h265Tmp}"
+  "${ffmpeg}" -i "${source}" -filter:v "crop=1440:1080:240:0,scale=640:480" -f yuv4mpegpipe pipe:1 | ~/ffmpeg_build/bin/x265 --input - --y4m --crf 15 --preset "${FFMPEG_VIDEO_PRESET:-slow}" --output "${h265Tmp}"
   mv "${h265Tmp}" "${h265}"
 fi
 
 m4a="${epid}.m4a"
-if [ ! -e "{m4a}" ]; then
+if [ ! -e "${m4a}" ]; then
   m4aTmp="$(mktemp)"
   "${ffmpeg}" -i "${source}" -vn -c:a libfdk_aac -vbr 3 -f mp4 -y "${m4aTmp}"
   mv "${m4aTmp}" "${m4a}"
