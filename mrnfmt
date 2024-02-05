@@ -31,7 +31,7 @@ if [ ! -e "${ffmpeg}" ]; then
   if [ ! -e "${ffmpegSources}" ]; then
     mkdir -p "${ffmpegSources}"
   fi
-  cd "${ffmpegSources}"
+  pushd "${ffmpegSources}"
   if [ ! -e "ffmpeg-6.1.1" ]; then
     ffmpegArchive="ffmpeg-6.1.1.tar.xz"
     ffmpegArchiveTmp="$(mktemp)"
@@ -39,11 +39,13 @@ if [ ! -e "${ffmpeg}" ]; then
     mv "${ffmpegArchiveTmp}" "${ffmpegArchive}"
     tar xvf "${ffmpegArchive}"
   fi
-  cd "ffmpeg-6.1.1"
+  pushd "ffmpeg-6.1.1"
   PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure --prefix="$HOME/ffmpeg_build"  --pkg-config-flags="--static"   --extra-cflags="-I$HOME/ffmpeg_build/include"   --extra-ldflags="-L$HOME/ffmpeg_build/lib"   --extra-libs="-lpthread -lm"   --ld="g++"   --bindir="$HOME/bin"   --enable-gpl   --enable-gnutls   --enable-libfdk-aac   --enable-libx265   --enable-nonfree
   PATH="$HOME/bin:$PATH" make -j$(nproc)
   make install
   hash -r
+  popd
+  popd
 fi
 
 if [ $# -ne 1 ]; then
@@ -78,7 +80,7 @@ fi
 srt="${epid}.srt"
 
 if [ ! -e "${srt}" ]; then
-  "~/dev/mrnfmt/venv/bin/python" ~/dev/mrnfmt/transcribe.py "${wav}" "${srt}"
+  ~/dev/mrnfmt/venv/bin/python ~/dev/mrnfmt/transcribe.py "${wav}" "${srt}"
 fi
 # -filter:v "crop=1440:1080:240:0,scale=640:480"
 
